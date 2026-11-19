@@ -256,6 +256,51 @@
     background:linear-gradient(135deg,transparent 52%,#8aa6bc 52%,#8aa6bc 60%,transparent 60%,transparent 72%,#8aa6bc 72%,#8aa6bc 80%,transparent 80%)}
   main.free>section.panel.dragging{box-shadow:0 12px 34px rgba(15,61,92,.38)}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ===== Obsidian風デザイン（暗い灰色＋紫のアクセント）===== */
+  :root{
+    --ink:#dcddde; --sub:#9a9ca3; --line:#33353b;
+    --navy:#202125; --navy2:#2a2b31; --blue:#8b72f0; --blue-soft:#2c2840;
+    --paper:#18191c; --panel:#202125;
+    --rec:#e5534b; --amber:#d9a441; --ok:#4fb87a;
+  }
+  body{background:var(--paper);color:var(--ink);font-family:Inter,"Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic",Meiryo,sans-serif}
+  header{background:#141518 !important;border-bottom:1px solid var(--line);box-shadow:none !important}
+  .brand span,.onair .label,.panel-head .sub,.msg.iwata .who{color:var(--sub)}
+  .panel{background:var(--panel);border:1px solid var(--line) !important;border-radius:10px;box-shadow:none !important}
+  .panel-head{background:transparent !important;color:#f2f2f3 !important;border-bottom:1px solid var(--line)}
+  .panel-head .no{color:var(--blue)}
+  .panel-head .exp{background:transparent;border:1px solid var(--line);color:var(--sub)}
+  .panel-head .exp:hover{background:var(--blue-soft);color:#fff}
+  input,textarea,select{background:#16171a !important;color:var(--ink) !important;border:1px solid var(--line) !important;border-radius:6px}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue) !important;box-shadow:0 0 0 2px rgba(139,114,240,.25)}
+  .btn,.mini{background:#2a2b31;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  .btn:hover,.mini:hover{background:#33353b;color:#fff}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.primary:hover{background:#7a60e6}
+  .btn.ghost{border-color:var(--line);color:var(--ink)}
+  .btn.ghost:hover{background:#2a2b31}
+  .pill{background:#26272c;border-color:var(--line);color:var(--sub)}
+  .pill.on{background:#1f3328;border-color:#2d4d3b;color:var(--ok)}
+  .pill.err{background:#3a2224;border-color:#5a3134;color:var(--rec)}
+  .pill.mut,.chip.warn,#netBanner{background:#352c1c;border-color:#544428;color:var(--amber)}
+  .msg.iwata{background:var(--blue-soft);color:var(--ink);border:1px solid #3d3560}
+  .msg.ai,.cand,#parkedList li,.chips .mini,li.item .t:hover{background:#26272c;border-color:var(--line);color:var(--ink)}
+  .cand.adopted{box-shadow:0 0 0 2px #1f3328}
+  li.item{background:#26272c;border-color:var(--line)}
+  li.item .t{color:#f2f2f3}
+  li.item .memo{color:var(--ink)}
+  .chip{background:var(--blue-soft);color:#c9bdfb;border-color:#3d3560}
+  .live-tag{background:#1f3328;border-color:#2d4d3b}
+  dialog,#expandDlg,.modal-in{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .exp-head{background:#141518;border-bottom:1px solid var(--line)}
+  .exp-body{background:var(--paper)}
+  .hint{color:var(--sub)}
+  a{color:var(--blue)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#33353b;border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
 <body>
@@ -358,6 +403,11 @@
         <div class="ops" id="liveRow" style="margin-top:8px">
           <button class="btn" id="liveBtn">🎧 声で会話を開始（Live）</button>
           <span class="pill" id="livePill">Live 停止中</span>
+        </div>
+        <div class="ops" id="liveOutRow" style="margin-top:6px">
+          <label for="liveSinkSel" style="font-size:12px">AIの声の出力先</label>
+          <select id="liveSinkSel"><option value="">システム標準</option></select>
+          <button class="btn" id="liveTestBtn" type="button">🔊 音のテスト</button>
         </div>
         <p class="hint" style="margin:4px 0 0">Liveでは、話しかけるとAIが声で答えます。ヘッドホンの使用を推奨します（スピーカーだとAIの声をマイクが拾います）。録音中は、AIの声もMP3に一緒に入ります。</p>
       </div>
@@ -1979,12 +2029,41 @@ function getAiBus(){
   aiCtx=new AC();aiOut=aiCtx.createGain();
   aiOut.connect(aiCtx.destination);                 // ① 耳に届ける
   if(aiCtx.createMediaStreamDestination){aiRecDest=aiCtx.createMediaStreamDestination();aiOut.connect(aiRecDest);} // ② 録音へ
+  applySink();
   return true;
 }
+/* AIの声の出力先（イヤホン等）を選ぶ。Chrome / Edge の setSinkId を使用 */
+const canSink=()=>typeof (window.AudioContext||function(){}).prototype.setSinkId==='function';
+async function fillSinks(){
+  const sel=$('liveSinkSel');
+  if(!canSink()||!navigator.mediaDevices||!navigator.mediaDevices.enumerateDevices){$('liveOutRow').querySelector('label').textContent='AIの声の出力先：システム標準（このブラウザでは切替不可）';sel.style.display='none';return;}
+  let outs=[];try{outs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audiooutput'&&d.deviceId!=='default');}catch(e){}
+  sel.innerHTML='<option value="">システム標準</option>';
+  outs.forEach((d,i)=>{const o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||('出力 '+(i+1)+'（マイク許可後に名前が出ます）');sel.appendChild(o);});
+  sel.value=outs.some(d=>d.deviceId===state.liveSink)?state.liveSink:'';
+}
+async function applySink(){
+  if(!aiCtx||!canSink())return;
+  try{await aiCtx.setSinkId(state.liveSink||'');}
+  catch(e){setLivePill('err','出力先を切り替えられません: '+e.message);}
+}
+$('liveSinkSel').onchange=()=>{state.liveSink=$('liveSinkSel').value;save();applySink();};
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',fillSinks);
+fillSinks();
+/* 音のテスト：AIの声と同じ通り道で短い音を鳴らす */
+$('liveTestBtn').onclick=async()=>{
+  if(!getAiBus()){setLivePill('err','このブラウザは音声再生に非対応です');return;}
+  if(aiCtx.state!=='running')await aiCtx.resume();
+  await applySink();
+  const o=aiCtx.createOscillator(),g=aiCtx.createGain(),t=aiCtx.currentTime;
+  o.frequency.value=660;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.3,t+0.05);g.gain.exponentialRampToValueAtTime(0.0001,t+0.6);
+  o.connect(g);g.connect(aiOut);o.start(t);o.stop(t+0.65);
+  if(!liveOn)setLivePill('','テスト音を鳴らしました。聞こえなければ出力先を選び直してください');
+};
 const LIVE_WS='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 let liveOn=false,liveWs=null,liveReady=false,liveHandle=null,liveRetry=0,liveRetryTimer=null;
 let liveMicStream=null,liveMicCtx=null,liveMicSrc=null,liveMicProc=null,liveMicMute=null;
-let livePlayAt=0,liveSources=[],liveInText='',liveOutText='';
+let livePlayAt=0,liveSources=[],liveInText='',liveOutText='',liveAudioChunks=0;
 function setLivePill(mode,text){const p=$('livePill');p.className='pill'+(mode==='on'?' on':mode==='err'?' err':'');p.textContent=text;}
 function setLiveBtn(){$('liveBtn').textContent=liveOn?'⏹ 声の会話を停止':'🎧 声で会話を開始（Live）';}
 function sysLive(){return sysCast()+'\nこれは音声での会話です。話し言葉で、短く答えてください。出典は名前だけ口頭で伝えてください。';}
@@ -1998,9 +2077,13 @@ function to16k(f32,rate){
   return out;
 }
 /* AIの声（24kHz・16bit）を順番に再生。aiOut経由なので録音にも入る */
-function playAiPcm(b64){
+function playAiPcm(b64,mime){
+  if(aiCtx.state!=='running')aiCtx.resume();
+  const rm=/rate=(\d+)/.exec(mime||''),rate=rm?parseInt(rm[1],10):24000;
   const u8=bytesFromB64(b64),i16=new Int16Array(u8.buffer,u8.byteOffset,u8.byteLength>>1);
-  const buf=aiCtx.createBuffer(1,i16.length,24000),ch=buf.getChannelData(0);
+  if(!i16.length)return;
+  liveAudioChunks++;
+  const buf=aiCtx.createBuffer(1,i16.length,rate),ch=buf.getChannelData(0);
   for(let i=0;i<i16.length;i++)ch[i]=i16[i]/32768;
   const src=aiCtx.createBufferSource();src.buffer=buf;src.connect(aiOut);
   const t=Math.max(aiCtx.currentTime+0.05,livePlayAt);src.start(t);livePlayAt=t+buf.duration;
@@ -2036,7 +2119,13 @@ async function liveHandleMsg(ev){
   if(sc.inputTranscription&&sc.inputTranscription.text)liveInText+=sc.inputTranscription.text;
   if(sc.outputTranscription&&sc.outputTranscription.text)liveOutText+=sc.outputTranscription.text;
   const parts=sc.modelTurn&&sc.modelTurn.parts||[];
-  parts.forEach(p=>{if(p.inlineData&&p.inlineData.data&&/audio/.test(p.inlineData.mimeType||'audio'))playAiPcm(p.inlineData.data);});
+  parts.forEach(p=>{if(p.inlineData&&p.inlineData.data&&/audio/.test(p.inlineData.mimeType||'audio'))playAiPcm(p.inlineData.data,p.inlineData.mimeType);});
+  if(sc.turnComplete){
+    /* 文字は届いたのに音声データが無い場合は、画面で知らせる */
+    if(liveOutText.trim()&&!liveAudioChunks)setLivePill('err','AIの音声データが届いていません（文字のみ）。⚙ 設定でLiveのモデルを変えてお試しください');
+    else if(liveAudioChunks)setLivePill('on','Live 会話中（音声 '+liveAudioChunks+' 件を再生）');
+    liveAudioChunks=0;
+  }
   if(sc.turnComplete||sc.interrupted)flushLiveText();
 }
 function liveConnect(){
@@ -2075,7 +2164,8 @@ async function startLive(){
     const pcm=to16k(e.inputBuffer.getChannelData(0),rate);
     liveSend({realtimeInput:{audio:{data:b64FromBytes(new Uint8Array(pcm.buffer)),mimeType:'audio/pcm;rate=16000'}}});
   };
-  liveOn=true;liveRetry=0;liveHandle=null;setLiveBtn();setLivePill('on','Live 接続中…');
+  fillSinks();await applySink();          // マイク許可後はイヤホン等の名前が選べる
+  liveOn=true;liveRetry=0;liveHandle=null;liveAudioChunks=0;setLiveBtn();setLivePill('on','Live 接続中…');
   liveConnect();
 }
 function stopLive(keepPill){
