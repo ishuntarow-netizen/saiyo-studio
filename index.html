@@ -287,6 +287,16 @@
   .msg.iwata{background:var(--blue-soft);color:var(--ink);border:1px solid #3d3560}
   .msg.ai,.cand,#parkedList li,.chips .mini,li.item .t:hover{background:#26272c;border-color:var(--line);color:var(--ink)}
   .cand.adopted{box-shadow:0 0 0 2px #1f3328}
+  .glass-items{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .glass-item{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#1b1c20}
+  .glass-item a.mini{text-decoration:none;color:#c9bdfb;border-color:#3d3560;padding:2px 8px;border-radius:6px}
+  .glass-item button.mini{color:#c9bdfb;border-color:#3d3560}
+  #tryGallery{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+  .try-card{border:1px solid var(--line);border-radius:8px;background:#1b1c20;padding:8px 10px}
+  .try-head{font-weight:700;font-size:13px;margin-bottom:6px}
+  .try-body img{max-width:100%;max-height:420px;border-radius:6px;display:block;margin-bottom:6px}
+  .try-body .mini{margin-right:6px;text-decoration:none}
+  .glass-links{margin-top:6px;font-size:12px;color:var(--sub);display:flex;flex-wrap:wrap;gap:4px 10px}
   li.item{background:#26272c;border-color:var(--line)}
   li.item .t{color:#f2f2f3}
   li.item .memo{color:var(--ink)}
@@ -301,6 +311,24 @@
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:#33353b;border-radius:8px}
   ::-webkit-scrollbar-track{background:transparent}
+  #padInbox .inbox-list{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 8px}
+  .inbox-item{display:flex;flex-direction:column;gap:4px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:6px;background:#1b1c20}
+  .inbox-item img{max-width:180px;max-height:130px;border-radius:4px;background:#fff}
+  .inbox-item .mini{text-decoration:none}
+  #viewer{position:fixed;inset:0;z-index:1000;background:var(--paper);overflow:auto;padding:12px 16px}
+  #viewer[hidden]{display:none}
+  .v-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .v-tabs{margin-bottom:10px}
+  #vCanvas{width:100%;max-width:1200px;aspect-ratio:3/2;background:#fff;border-radius:8px;touch-action:none;display:block;border:1px solid var(--line)}
+  .vcol{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
+  .vcol.sel{outline:3px solid var(--blue);outline-offset:2px}
+  #vAgendaList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+  .v-item{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#26272c}
+  .v-item.active{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft)}
+  .v-item.done{opacity:.55}
+  .v-row{display:flex;justify-content:space-between;gap:10px;font-weight:700}
+  .v-time{font-family:var(--mono);font-weight:400;color:var(--sub);white-space:nowrap}
+  #vChatLog{display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
 <body>
@@ -326,6 +354,7 @@
   <span class="spacer"></span>
   <button class="btn ghost" id="layoutBtn" aria-pressed="false" title="各ウィンドウをドラッグで動かし、右下でサイズ変更できます">🗔 自由配置</button>
   <button class="btn ghost" id="layoutResetBtn" disabled title="ウィンドウの配置を最初の状態に戻します（自由配置がONのときに使えます）">↺ 初期配置</button>
+  <button class="btn ghost" id="shareBtn">📡 共有</button>
   <button class="btn ghost" id="settingBtn">⚙ 設定</button>
 </header>
 
@@ -384,10 +413,16 @@
     <div class="panel-head"><span class="no">③</span>AI回答・回答選択<span class="sub">AI CAST</span><button class="exp" title="全画面で表示">⛶ 全画面</button></div>
     <div class="panel-body">
       <div id="chatLog" aria-live="polite"></div>
+      <div id="padInbox"></div>
+      <div id="tryGallery"></div>
+      <input type="file" id="tryInput" accept="image/*" hidden />
       <div class="composer">
         <textarea id="chatInput" placeholder="岩田さんの問いを入力（例：知名度の低い地域企業が、新卒学生に会うために最初に変えるべきことは？）"></textarea>
         <div class="ops">
           <button class="btn primary" id="sendBtn">送信</button>
+          <button class="btn" id="imgBtn" type="button" title="メガネ・サングラスの画像を送ると、似合い方の所見と、市場で近い商品を返します">🖼 画像を添付</button>
+          <input type="file" id="imgInput" accept="image/*" hidden />
+          <span id="imgPrev" style="display:none;align-items:center;gap:6px"></span>
           <button class="btn" id="candBtn">候補を3案生成</button>
           <label><input type="checkbox" id="withSearch" /> 検索しながら答える</label>
           <label><input type="checkbox" id="ttsChk" /> AIの発言を読み上げる</label>
@@ -473,6 +508,58 @@
   <span>※ AIの回答は出典を確認してから番組で使用してください</span>
 </footer>
 
+<dialog id="shareDlg">
+  <div class="modal-in">
+    <h3>📡 共有（収録中にタブレットで見る・タブレットから画像を送る）</h3>
+    <p class="hint">パソコンとタブレットを直接つなぎます。送るのはアジェンダとAIの会話だけで、APIキーは送りません。内容は外部に保存されません。</p>
+    <h4 style="margin:10px 0 4px">このパソコンで進行する</h4>
+    <div class="ops"><button class="btn primary" id="shareHostBtn" type="button">共有を開始</button><span class="pill" id="shareStat">停止中</span></div>
+    <div id="shareHostBox" hidden>
+      <p style="margin:8px 0 2px">共有コード：<b id="shareCode" style="font-size:24px;letter-spacing:.15em"></b></p>
+      <p class="hint" style="margin:0 0 4px">タブレットで同じアプリを開いて「📡 共有」→「タブレットで参加」にこのコードを入れるか、次のURLを開いてください。</p>
+      <input id="shareUrl" readonly onclick="this.select()" style="width:100%" />
+      <div class="ops" style="margin-top:6px"><button class="btn" id="shareStopBtn" type="button">共有を終了</button></div>
+    </div>
+    <h4 style="margin:14px 0 4px">タブレットで参加する</h4>
+    <div class="ops"><input id="joinCode" inputmode="numeric" maxlength="6" placeholder="6桁の共有コード" style="width:160px" /><button class="btn primary" id="joinBtn" type="button">参加</button></div>
+    <div class="ops" style="margin-top:12px"><button class="btn" id="shareClose" type="button">閉じる</button></div>
+  </div>
+</dialog>
+
+<div id="viewer" hidden>
+  <div class="v-head">
+    <b id="vTitle">ローカル採用会議 スタジオ（閲覧）</b>
+    <span class="pill" id="vStat">未接続</span>
+    <span style="margin-left:auto"></span>
+    <button class="btn" id="vRetry" type="button">再接続</button>
+    <button class="btn" id="vExit" type="button">閉じる</button>
+  </div>
+  <div class="v-tabs ops">
+    <button class="btn primary" type="button" data-v="draw">✏ 描いて送る</button>
+    <button class="btn" type="button" data-v="agenda">① アジェンダ</button>
+    <button class="btn" type="button" data-v="chat">③ AIの回答</button>
+  </div>
+  <section id="vDraw" class="v-pane">
+    <div class="ops v-tools">
+      <button class="vcol sel" type="button" data-c="#111111" aria-label="黒"></button>
+      <button class="vcol" type="button" data-c="#d43d3d" aria-label="赤"></button>
+      <button class="vcol" type="button" data-c="#1d6fa5" aria-label="青"></button>
+      <button class="vcol" type="button" data-c="#2e7d4f" aria-label="緑"></button>
+      <label style="font-size:12px">太さ <input id="vSize" type="range" min="2" max="24" value="4" /></label>
+      <button class="btn" id="vEraser" type="button">消しゴム</button>
+      <button class="btn" id="vUndo" type="button">↶ 戻す</button>
+      <button class="btn" id="vClear" type="button">全消去</button>
+      <button class="btn" id="vPhoto" type="button">🖼 写真から送る</button>
+      <input type="file" id="vPhotoInput" accept="image/*" hidden />
+      <button class="btn primary" id="vSend" type="button">📤 スタジオへ送る</button>
+    </div>
+    <canvas id="vCanvas" width="1200" height="800"></canvas>
+    <p class="hint" id="vSendStat"></p>
+  </section>
+  <section id="vAgenda" class="v-pane" hidden><p class="hint" id="vTheme"></p><ul id="vAgendaList"></ul></section>
+  <section id="vChat" class="v-pane" hidden><div id="vChatLog"></div></section>
+</div>
+
 <dialog id="settingDlg">
   <div class="modal-in">
     <h3>⚙ 設定</h3>
@@ -499,6 +586,9 @@
     </select>
     <label for="liveVoiceInput" style="font-size:12px">AIの声の名前（例：Kore）</label>
     <input id="liveVoiceInput" type="text" placeholder="Kore" />
+    <label for="tryModelInput" style="font-size:12px">AI合成（かけてみる）のモデル</label>
+    <input id="tryModelInput" type="text" list="tryModelList" placeholder="gemini-3-pro-image-preview" />
+    <datalist id="tryModelList"><option value="gemini-3-pro-image-preview"><option value="gemini-nano-banana-2.1"></datalist>
     <label for="ttsEngineSel" style="font-size:12px">読み上げ音声の品質</label>
     <select id="ttsEngineSel">
       <option value="browser">標準（無料・即時）</option>
@@ -1423,6 +1513,7 @@ function save(){
     if(!warnedFail){warnedFail=true;alert('ブラウザへの保存に失敗しました（容量超過またはプライベートモードの可能性）。「⬇ 書き出す」で内容を保存してください。');}
   }else{
     warnedFail=false;
+    shareNotify();
     if(store.size>3500000&&!warnedSize){warnedSize=true;alert('保存データが大きくなっています（約'+Math.round(store.size/1000)+'K文字／上限は約5M）。「⬇ 書き出す」で保存し、文字起こしをクリアすることをおすすめします。');}
   }
 }
@@ -1667,7 +1758,20 @@ function renderChat(){
     const d=document.createElement('div');d.className='msg '+(m.role==='user'?'iwata':'ai');
     const w=document.createElement('span');w.className='who';
     w.textContent=m.role==='user'?'岩田':'AIキャスト';d.appendChild(w);
+    if(m.img){const g=document.createElement('span');g.className='rec-tag';g.style.background='var(--blue)';g.textContent='🖼 画像あり';d.appendChild(g);}
     const t=document.createElement('span');t.textContent=m.text;d.appendChild(t);
+    if(m.items&&m.items.length){const box=document.createElement('div');box.className='glass-items';
+      m.items.forEach(it=>{const row=document.createElement('div');row.className='glass-item';
+        const nm=document.createElement('span');nm.textContent='👓 '+it.name+(it.brand?'（'+it.brand+'）':'');row.appendChild(nm);
+        const a=document.createElement('a');a.className='mini';a.target='_blank';a.rel='noopener';
+        a.href='https://www.google.com/search?tbm=isch&q='+encodeURIComponent(it.q||((it.brand||'')+' '+it.name));
+        a.textContent='Google画像検索で見る';row.appendChild(a);
+        const tb=document.createElement('button');tb.className='mini';tb.type='button';tb.textContent='👓 かけてみる（AI合成）';tb.onclick=()=>startTryOn(it);row.appendChild(tb);
+        box.appendChild(row);});
+      d.appendChild(box);}
+    if(m.links&&m.links.length){const box=document.createElement('div');box.className='glass-links';box.textContent='出典・販売ページ：';
+      m.links.forEach(l=>{const a=document.createElement('a');a.href=l.uri;a.target='_blank';a.rel='noopener';a.textContent=l.title||l.uri;box.appendChild(a);});
+      d.appendChild(box);}
     if(m.adopted){const r=document.createElement('span');r.className='rec-tag';r.textContent='✔採用';d.appendChild(r);}
     log.appendChild(d);
   });
@@ -1680,7 +1784,112 @@ function historyForApi(){
 }
 function candContents(lastQ){const h=historyForApi();
   if(!h.length||h[h.length-1].role!=='user')h.push({role:'user',parts:[{text:lastQ}]});return h;}
+/* ===== ③ 画像の添付：似合い方の所見＋市場で近いメガネ ===== */
+let pendingImg=null,imgConsented=false;   // {data(base64), mime, url(プレビュー)}
+function renderImgPrev(){
+  const p=$('imgPrev');p.innerHTML='';
+  if(!pendingImg){p.style.display='none';return;}
+  p.style.display='inline-flex';
+  const im=document.createElement('img');im.src=pendingImg.url;im.alt='添付画像';im.style.cssText='height:34px;border-radius:4px;border:1px solid var(--line)';
+  const x=document.createElement('button');x.className='mini';x.type='button';x.textContent='✕ 外す';x.onclick=()=>{pendingImg=null;renderImgPrev();};
+  p.append(im,x);
+}
+/* 送信サイズを抑えるため、長い辺1024pxのJPEGに縮小 */
+function shrinkImage(file){return new Promise((res,rej)=>{
+  const fr=new FileReader();fr.onerror=()=>rej(new Error('読み込めません'));
+  fr.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error('画像として開けません'));
+    im.onload=()=>{const k=Math.min(1,1024/Math.max(im.width,im.height));
+      const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);const url=c.toDataURL('image/jpeg',0.85);
+      res({url,mime:'image/jpeg',data:url.split(',')[1]});};
+    im.src=fr.result;};
+  fr.readAsDataURL(file);});}
+$('imgBtn').onclick=()=>{
+  if(!imgConsented){
+    if(!confirm('画像は Gemini API（Google）へ送信されます。人の顔が写っている場合は、写っている本人の了承を得てから送ってください。続けますか？'))return;
+    imgConsented=true;}
+  $('imgInput').click();};
+$('imgInput').onchange=async()=>{const f=$('imgInput').files[0];$('imgInput').value='';if(!f)return;
+  try{pendingImg=await shrinkImage(f);renderImgPrev();$('chatInput').focus();}catch(e){alert('画像を添付できません: '+e.message);}};
+function sysGlasses(){return 'あなたはメガネ・サングラスのスタイリングのアドバイザーです。送られた画像を見て答えます。ルール:1)結論から簡潔に。2)似合っているかは断定せず、「〜の印象に見える」の形で、理由（顔の形とフレームの形・色・大きさのバランス）を添える。3)年齢や容姿を否定的に扱わない。4)より合いそうなフレームの方向性を1〜2個提案する。5)Google検索で、画像のメガネに近いデザインで実際に販売されている商品を3つ探す。回答の最後に、1商品1行で必ず次の形式で書く：【近い商品】商品名｜ブランド名｜画像検索用の短い語。6)価格・素材は検索結果で確認できたものだけ書き、確認できないことは書かない。7)画像にメガネが写っていない場合は、その旨を伝え、写っている人の印象に合いそうなフレームの方向性だけを提案する。';}
+function parseGlassItems(text){
+  const items=[];const rest=[];
+  text.split('\n').forEach(line=>{const m=/^\s*[-・*]?\s*【近い商品】\s*(.+)$/.exec(line);
+    if(m){const p=m[1].split(/[｜|]/).map(s=>s.trim());items.push({name:p[0]||'',brand:p[1]||'',q:p[2]||''});}
+    else rest.push(line);});
+  return {items:items.filter(i=>i.name).slice(0,5),text:rest.join('\n').trim()};
+}
+/* ===== 👓 かけてみる（AI合成）：顔画像＋選んだ商品画像 → かけているイメージ ===== */
+let lastFaceImg=null,tryTarget=null;
+function startTryOn(it){
+  if(!lastFaceImg){alert('顔の画像が見つかりません（ページを開き直すと消えます）。もう一度「🖼 画像を添付」で顔の画像を送ってから押してください');return;}
+  if(!state.apiKey){alert('⚙ 設定で Gemini APIキーを保存してください');return;}
+  tryTarget=it;
+  alert('「'+it.name+'」の商品画像を選んでください。\n（「Google画像検索で見る」で開いた画像を保存しておくと選べます）');
+  $('tryInput').click();
+}
+$('tryInput').onchange=async()=>{const f=$('tryInput').files[0];$('tryInput').value='';if(!f||!tryTarget)return;
+  let prod;try{prod=await shrinkImage(f);}catch(e){alert('画像を読み込めません: '+e.message);return;}
+  runTryOn(tryTarget,prod);};
+function addTryCard(it){
+  const g=$('tryGallery');const c=document.createElement('div');c.className='try-card';
+  const h=document.createElement('div');h.className='try-head';h.textContent='👓 '+it.name+(it.brand?'（'+it.brand+'）':'')+' をかけたイメージ';
+  const b=document.createElement('div');b.className='try-body';b.textContent='AIで合成しています…（数十秒かかることがあります）';
+  c.append(h,b);g.prepend(c);c.scrollIntoView({block:'nearest'});return b;
+}
+async function runTryOn(it,prod){
+  const body=addTryCard(it);
+  const model=state.tryModel||'gemini-3-pro-image-preview';
+  const prompt='1枚目は人物の写真、2枚目はメガネ（サングラス）の商品写真です。1枚目の人物が、2枚目のメガネを実際にかけている自然な写真を作ってください。人物の顔立ち・表情・髪型・服・背景・光の当たり方は変えないでください。メガネの形・色・素材感・大きさは2枚目に忠実にし、顔の幅に合った自然なサイズで、耳にかかっているように合成してください。1枚目で既にメガネをかけている場合は、それを外して置き換えてください。';
+  try{
+    const res=await fetch(API_BASE+model+':generateContent',{method:'POST',
+      headers:{'Content-Type':'application/json','x-goog-api-key':state.apiKey},
+      body:JSON.stringify({contents:[{role:'user',parts:[
+          {inlineData:{mimeType:lastFaceImg.mime,data:lastFaceImg.data}},
+          {inlineData:{mimeType:prod.mime,data:prod.data}},{text:prompt}]}],
+        generationConfig:{responseModalities:['TEXT','IMAGE']}})});
+    if(!res.ok){const t=await res.text();throw new Error('api '+res.status+' '+t.slice(0,300));}
+    const data=await res.json();
+    const part=(data?.candidates?.[0]?.content?.parts||[]).find(p=>p.inlineData&&/image/.test(p.inlineData.mimeType||''));
+    if(!part){body.textContent='画像を作れませんでした。'+(extractText(data)?'AIの返答：'+extractText(data):'別の写真でお試しください。');return;}
+    const url='data:'+part.inlineData.mimeType+';base64,'+part.inlineData.data;
+    body.innerHTML='';
+    const im=document.createElement('img');im.src=url;im.alt=it.name+' をかけたAI合成イメージ';
+    const note=document.createElement('p');note.className='hint';note.textContent='AI合成イメージです。実際の見え方・サイズ感とは異なる場合があります。';
+    const dl=document.createElement('a');dl.className='mini';dl.href=url;dl.download='かけてみた_'+(it.name||'メガネ').replace(/[\\/:*?"<>|]/g,'')+'.png';dl.textContent='⬇ 画像を保存';
+    const x=document.createElement('button');x.className='mini';x.type='button';x.textContent='✕ 閉じる';x.onclick=()=>body.parentNode.remove();
+    body.append(im,note,dl,x);
+    pushMsg('model','（AI合成）「'+it.name+'」をかけたイメージを作成しました。',false,true);
+  }catch(e){
+    const m=e.message||'';
+    body.textContent='（エラー: '+(/api 404|NOT_FOUND|not found|not supported/i.test(m)?'合成モデル「'+model+'」がこのキーで使えません。⚙ 設定の「AI合成のモデル」を変えてお試しください。':friendlyError(m))+'）';
+  }
+}
+async function sendImageChat(q){
+  const ta=$('chatInput');const img=pendingImg;
+  if(!navigator.onLine){alert('オフラインです。Wi-Fi接続後に送信できます');return;}
+  if(!state.apiKey){alert('画像の診断には、⚙ 設定で Gemini APIキーを保存してください');return;}
+  ta.value='';pendingImg=null;renderImgPrev();
+  lastFaceImg=img;   // 「かけてみる」用に、このページを開いている間だけ覚えておく
+  const ask=q||'このメガネ（サングラス）は似合っていますか？市場で近いデザインの商品も教えてください。';
+  pushMsg('user',ask);state.chat[state.chat.length-1].img=true;save();renderChat();
+  const log=$('chatLog');const wait=document.createElement('div');wait.className='msg ai';wait.textContent='画像を見て、近い商品を検索しています…';log.appendChild(wait);log.scrollTop=log.scrollHeight;
+  try{
+    const body={systemInstruction:{parts:[{text:sysGlasses()}]},
+      contents:[{role:'user',parts:[{inlineData:{mimeType:img.mime,data:img.data}},{text:ask}]}],
+      tools:[{google_search:{}}]};
+    const data=await callGemini(body);
+    const raw=extractText(data);const r=parseGlassItems(raw);
+    const chunks=data?.candidates?.[0]?.groundingMetadata?.groundingChunks||[];
+    const links=[];chunks.forEach(c=>{if(c.web&&c.web.uri&&!links.some(l=>l.uri===c.web.uri))links.push({title:c.web.title||'',uri:c.web.uri});});
+    wait.remove();
+    pushMsg('model',r.text||'（回答を取得できませんでした）',false,!r.text);
+    const m=state.chat[state.chat.length-1];m.items=r.items;m.links=links.slice(0,6);save();renderChat();
+    if(r.text&&$('ttsChk').checked)speak(r.text);
+  }catch(e){wait.remove();pushMsg('model','（エラー: '+friendlyError(e.message)+'）',false,true);}
+}
 async function sendChat(){
+  if(pendingImg)return sendImageChat($('chatInput').value.trim());
   const ta=$('chatInput');const q=ta.value.trim();if(!q)return;
   if(!navigator.onLine){alert('オフラインです。Wi-Fi接続後に送信できます');return;}
   ta.value='';pushMsg('user',q);
@@ -2217,7 +2426,7 @@ function setModelSel(v){const sel=$('modelSel');
   if(![...sel.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);}
   sel.value=v;}
 $('settingBtn').onclick=()=>{$('keyInput').value=state.apiKey;setModelSel(state.model);
-  $('liveModelSel').value=state.liveModel||'gemini-3.8-live';$('liveVoiceInput').value=state.liveVoice||'Kore';$('modelListOut').textContent='';$('settingDlg').showModal();};
+  $('liveModelSel').value=state.liveModel||'gemini-3.8-live';$('liveVoiceInput').value=state.liveVoice||'Kore';$('tryModelInput').value=state.tryModel||'gemini-3-pro-image-preview';$('modelListOut').textContent='';$('settingDlg').showModal();};
 $('modelListBtn').onclick=async()=>{
   const key=$('keyInput').value.replace(/\s+/g,'');
   if(!key){$('modelListOut').textContent='キーを入力してから押してください';return;}
@@ -2240,7 +2449,7 @@ $('modelListBtn').onclick=async()=>{
 };
 $('dlgClose').onclick=()=>$('settingDlg').close();
 $('dlgSave').onclick=()=>{state.apiKey=$('keyInput').value.replace(/\s+/g,'');state.model=$('modelSel').value;
-  state.liveModel=$('liveModelSel').value;state.liveVoice=$('liveVoiceInput').value.trim()||'Kore';
+  state.liveModel=$('liveModelSel').value;state.liveVoice=$('liveVoiceInput').value.trim()||'Kore';state.tryModel=$('tryModelInput').value.trim()||'gemini-3-pro-image-preview';
   save();updateFoot();$('settingDlg').close();};
 $('testBtn').onclick=async()=>{
   const key=$('keyInput').value.trim().replace(/\s+/g,'');
@@ -2371,6 +2580,168 @@ $('ttsEngineSel').onchange=()=>{state.ttsEngine=$('ttsEngineSel').value;save();}
 $('ttsVoiceSel').onchange=()=>{state.ttsVoice=$('ttsVoiceSel').value;save();};
 $('ttsRateR').oninput=()=>{state.ttsRate=parseFloat($('ttsRateR').value);$('ttsRateV').textContent=state.ttsRate.toFixed(2);save();};
 renderAgenda();renderParked();renderChat();updateFoot();applyNet();applyOnairUI();tick();initLayout();updateMicPill();
+
+/* ================= 📡 共有（パソコン⇔タブレット：端末どうしを直接つなぐ P2P） ================= */
+/* 送るのはアジェンダとAIの会話だけ。APIキーは送らない。外部サービス（PeerJS）はつなぐ手続きにだけ使う */
+var SHARE_PREFIX='locaiyo-studio-',sharePeer=null,shareRole=null,shareConns=[],shareCode='',shareTimer=null,shareDirty=false,viewConn=null;
+var padInbox=[],vSnap=null,vSnapAt=0,vTick=null;
+function loadPeerLib(){return new Promise((res,rej)=>{if(window.Peer)return res();
+  const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
+  s.onload=()=>window.Peer?res():rej(new Error('接続用の部品を読み込めません'));
+  s.onerror=()=>rej(new Error('接続用の部品を読み込めません（オフラインの可能性）'));document.head.appendChild(s);});}
+function setShareStat(t,mode){const e=$('shareStat');e.textContent=t;e.className='pill'+(mode==='on'?' on':mode==='err'?' err':'');}
+function shareSnapshot(){
+  return {type:'state',appName:state.appName||'',theme:$('epTitle').value||'',onair:!!state.onair,activeId:state.activeId,
+    agenda:state.agenda.map(a=>({id:a.id,title:a.title,minutes:a.minutes,memo:a.memo,done:a.done,elapsed:Math.round(itemElapsed(a))})),
+    chat:state.chat.slice(-60).map(m=>({role:m.role,text:m.text,adopted:!!m.adopted,img:!!m.img}))};}
+function shareNotify(){if(shareRole==='host')shareDirty=true;}
+function shareFlush(){if(shareRole!=='host')return;const open=shareConns.filter(c=>c.open);if(!open.length)return;
+  const snap=shareSnapshot();open.forEach(c=>{try{c.send(snap);}catch(e){}});shareDirty=false;}
+function updateHostStat(){const n=shareConns.filter(c=>c.open).length;setShareStat(n?('タブレット '+n+'台とつながっています'):'タブレットからの参加を待っています','on');}
+function stopShare(){
+  clearInterval(shareTimer);clearInterval(vTick);
+  shareConns.forEach(c=>{try{c.close();}catch(e){}});shareConns=[];
+  try{viewConn&&viewConn.close();}catch(e){}viewConn=null;
+  try{sharePeer&&sharePeer.destroy();}catch(e){}sharePeer=null;shareRole=null;
+  $('shareBtn').textContent='📡 共有';$('shareHostBox').hidden=true;setShareStat('停止中');
+}
+async function startShareHost(){
+  try{await loadPeerLib();}catch(e){setShareStat(e.message,'err');return;}
+  stopShare();
+  shareCode=String(Math.floor(100000+Math.random()*900000));
+  sharePeer=new Peer(SHARE_PREFIX+shareCode);shareRole='host';setShareStat('準備中…');
+  sharePeer.on('open',()=>{
+    $('shareCode').textContent=shareCode;$('shareUrl').value=location.origin+location.pathname+'?join='+shareCode;
+    $('shareHostBox').hidden=false;$('shareBtn').textContent='📡 共有中';updateHostStat();});
+  sharePeer.on('connection',c=>{shareConns.push(c);
+    c.on('open',()=>{updateHostStat();try{c.send(shareSnapshot());}catch(e){}});
+    c.on('data',d=>onHostData(c,d));
+    c.on('close',()=>{shareConns=shareConns.filter(x=>x!==c);updateHostStat();});
+    c.on('error',()=>{});});
+  sharePeer.on('disconnected',()=>{try{sharePeer&&sharePeer.reconnect();}catch(e){}});
+  sharePeer.on('error',e=>{if(e.type==='unavailable-id'){startShareHost();return;}setShareStat('共有エラー: '+(e.type||e.message),'err');});
+  let tick=0;shareTimer=setInterval(()=>{tick++;if(shareDirty||tick%5===0)shareFlush();},1000);
+}
+function onHostData(c,d){
+  if(!d||d.type!=='image'||!d.data)return;
+  const mime=d.mime||'image/jpeg';
+  padInbox.unshift({url:'data:'+mime+';base64,'+d.data,mime,data:d.data,at:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+  renderInbox();try{c.send({type:'ack'});}catch(e){}
+}
+function renderInbox(){
+  const box=$('padInbox');box.innerHTML='';if(!padInbox.length)return;
+  const h=document.createElement('div');h.className='try-head';h.textContent='📥 タブレットから届いた画像';box.appendChild(h);
+  const wrap=document.createElement('div');wrap.className='inbox-list';
+  padInbox.forEach((it,i)=>{const c=document.createElement('div');c.className='inbox-item';
+    const im=document.createElement('img');im.src=it.url;im.alt='タブレットから届いた画像';
+    const t=document.createElement('span');t.className='hint';t.textContent=it.at;
+    const a=document.createElement('button');a.className='mini';a.type='button';a.textContent='③に添付';
+    a.onclick=()=>{if(!imgConsented){if(!confirm('画像は Gemini API（Google）へ送信されます。人の顔が写っている場合は、写っている本人の了承を得てから送ってください。続けますか？'))return;imgConsented=true;}
+      pendingImg={url:it.url,mime:it.mime,data:it.data};renderImgPrev();$('chatInput').focus();};
+    const dl=document.createElement('a');dl.className='mini';dl.href=it.url;dl.download='tablet_'+it.at.replace(/:/g,'')+'.jpg';dl.textContent='⬇ 保存';
+    const x=document.createElement('button');x.className='mini';x.type='button';x.textContent='✕';x.onclick=()=>{padInbox.splice(i,1);renderInbox();};
+    c.append(im,t,a,dl,x);wrap.appendChild(c);});
+  box.appendChild(wrap);
+}
+$('shareBtn').onclick=()=>$('shareDlg').showModal();
+$('shareClose').onclick=()=>$('shareDlg').close();
+$('shareHostBtn').onclick=startShareHost;
+$('shareStopBtn').onclick=()=>{stopShare();};
+$('joinBtn').onclick=()=>joinShare($('joinCode').value);
+
+/* ----- タブレット側（閲覧＋描いて送る） ----- */
+function setViewStat(t,mode){const e=$('vStat');e.textContent=t;e.className='pill'+(mode==='on'?' on':mode==='err'?' err':'');}
+function openViewer(){$('viewer').hidden=false;document.body.style.overflow='hidden';vSetTab('draw');}
+function closeViewer(){stopShare();$('viewer').hidden=true;document.body.style.overflow='';
+  if(/[?&]join=/.test(location.search))history.replaceState(null,'',location.pathname);}
+async function joinShare(code){
+  code=String(code||'').replace(/\D/g,'');if(code.length!==6){alert('6桁の共有コードを入れてください');return;}
+  if($('shareDlg').open)$('shareDlg').close();
+  openViewer();setViewStat('接続中…');
+  try{await loadPeerLib();}catch(e){setViewStat(e.message,'err');return;}
+  stopShare();shareCode=code;
+  sharePeer=new Peer();shareRole='viewer';
+  sharePeer.on('open',()=>{
+    viewConn=sharePeer.connect(SHARE_PREFIX+code);
+    viewConn.on('open',()=>setViewStat('パソコンとつながりました','on'));
+    viewConn.on('data',onViewData);
+    viewConn.on('close',()=>setViewStat('接続が切れました。「再接続」を押してください','err'));
+    viewConn.on('error',()=>setViewStat('接続エラー。「再接続」を押してください','err'));});
+  sharePeer.on('error',e=>setViewStat(e.type==='peer-unavailable'?'このコードの共有が見つかりません。パソコン側で共有中か、コードを確認してください':'接続エラー: '+(e.type||e.message),'err'));
+  clearInterval(vTick);vTick=setInterval(renderViewAgenda,1000);
+}
+function onViewData(d){
+  if(!d)return;
+  if(d.type==='ack'){$('vSendStat').textContent='✔ スタジオに届きました（'+new Date().toLocaleTimeString('ja-JP')+'）';return;}
+  if(d.type==='state'){vSnap=d;vSnapAt=Date.now();
+    $('vTitle').textContent=(d.appName||'ローカル採用会議 スタジオ')+'（閲覧）';
+    $('vTheme').textContent=d.theme?('テーマ：'+d.theme):'';
+    renderViewAgenda();renderViewChat();}
+}
+function renderViewAgenda(){
+  const ul=$('vAgendaList');if(!vSnap){ul.innerHTML='';return;}
+  ul.innerHTML='';
+  vSnap.agenda.forEach(a=>{const li=document.createElement('li');li.className='v-item'+(a.done?' done':'')+(vSnap.activeId===a.id?' active':'');
+    const el=a.elapsed+(vSnap.activeId===a.id?(Date.now()-vSnapAt)/1000:0);
+    const t=document.createElement('div');t.className='v-row';
+    const s=document.createElement('span');s.textContent=(a.done?'✔ ':'□ ')+a.title;
+    const tm=document.createElement('span');tm.className='v-time';tm.textContent=fmt(el)+' / '+a.minutes+'分';
+    t.append(s,tm);li.appendChild(t);
+    if(a.memo){const m=document.createElement('div');m.className='hint';m.textContent=a.memo;li.appendChild(m);}
+    ul.appendChild(li);});
+}
+function renderViewChat(){
+  const log=$('vChatLog');log.innerHTML='';if(!vSnap)return;
+  if(!vSnap.chat.length){log.innerHTML='<p class="hint">まだ会話はありません</p>';return;}
+  vSnap.chat.forEach(m=>{const d=document.createElement('div');d.className='msg '+(m.role==='user'?'iwata':'ai');
+    const w=document.createElement('span');w.className='who';w.textContent=m.role==='user'?'岩田':'AIキャスト';d.appendChild(w);
+    const t=document.createElement('span');t.textContent=m.text;d.appendChild(t);
+    if(m.adopted){const r=document.createElement('span');r.className='rec-tag';r.textContent='✔採用';d.appendChild(r);}
+    log.appendChild(d);});
+  log.scrollTop=log.scrollHeight;
+}
+function vSetTab(v){
+  document.querySelectorAll('#viewer .v-tabs .btn').forEach(b=>b.classList.toggle('primary',b.dataset.v===v));
+  $('vDraw').hidden=v!=='draw';$('vAgenda').hidden=v!=='agenda';$('vChat').hidden=v!=='chat';
+}
+document.querySelectorAll('#viewer .v-tabs .btn').forEach(b=>b.onclick=()=>vSetTab(b.dataset.v));
+$('vExit').onclick=closeViewer;
+$('vRetry').onclick=()=>joinShare(shareCode);
+
+/* 描く（指・Apple Pencil） */
+(function(){
+  const cv=$('vCanvas'),cx=cv.getContext('2d');let color='#111111',size=4,eraser=false,drawing=false,last=null;const undo=[];
+  function clearCv(){cx.fillStyle='#ffffff';cx.fillRect(0,0,cv.width,cv.height);}
+  clearCv();
+  const pos=e=>{const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};};
+  cv.addEventListener('pointerdown',e=>{e.preventDefault();cv.setPointerCapture(e.pointerId);
+    undo.push(cx.getImageData(0,0,cv.width,cv.height));if(undo.length>20)undo.shift();
+    drawing=true;last=pos(e);
+    cx.beginPath();cx.fillStyle=eraser?'#ffffff':color;cx.arc(last.x,last.y,(eraser?size*4:size)/2,0,Math.PI*2);cx.fill();});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;e.preventDefault();const p=pos(e);
+    const pr=e.pressure&&e.pointerType==='pen'?(0.4+e.pressure):1;
+    cx.strokeStyle=eraser?'#ffffff':color;cx.lineWidth=(eraser?size*4:size)*pr;cx.lineCap='round';cx.lineJoin='round';
+    cx.beginPath();cx.moveTo(last.x,last.y);cx.lineTo(p.x,p.y);cx.stroke();last=p;});
+  const end=()=>{drawing=false;last=null;};
+  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+  document.querySelectorAll('#viewer .vcol').forEach(b=>{b.style.background=b.dataset.c;b.onclick=()=>{color=b.dataset.c;eraser=false;$('vEraser').classList.remove('primary');
+    document.querySelectorAll('#viewer .vcol').forEach(x=>x.classList.toggle('sel',x===b));};});
+  $('vSize').oninput=()=>{size=parseInt($('vSize').value,10);};
+  $('vEraser').onclick=()=>{eraser=!eraser;$('vEraser').classList.toggle('primary',eraser);};
+  $('vUndo').onclick=()=>{const u=undo.pop();if(u)cx.putImageData(u,0,0);};
+  $('vClear').onclick=()=>{if(!confirm('描いた内容をすべて消しますか？'))return;undo.push(cx.getImageData(0,0,cv.width,cv.height));clearCv();};
+  function sendToHost(img){
+    if(!viewConn||!viewConn.open){alert('パソコンとつながっていません。「再接続」を押してください');return;}
+    try{viewConn.send({type:'image',mime:img.mime,data:img.data});$('vSendStat').textContent='送信中…';}
+    catch(e){$('vSendStat').textContent='送れませんでした: '+e.message;}
+  }
+  $('vSend').onclick=()=>{const url=cv.toDataURL('image/jpeg',0.9);sendToHost({mime:'image/jpeg',data:url.split(',')[1]});};
+  $('vPhoto').onclick=()=>$('vPhotoInput').click();
+  $('vPhotoInput').onchange=async()=>{const f=$('vPhotoInput').files[0];$('vPhotoInput').value='';if(!f)return;
+    try{sendToHost(await shrinkImage(f));}catch(e){alert('画像を読み込めません: '+e.message);}};
+})();
+/* URLに ?join=コード が付いていれば、自動でタブレット側として参加 */
+(function(){const m=/[?&]join=(\d{6})/.exec(location.search);if(m)joinShare(m[1]);})();
 </script>
 </body>
 </html>
