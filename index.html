@@ -1812,6 +1812,7 @@ $('imgBtn').onclick=()=>{
 $('imgInput').onchange=async()=>{const f=$('imgInput').files[0];$('imgInput').value='';if(!f)return;
   try{pendingImg=await shrinkImage(f);renderImgPrev();$('chatInput').focus();}catch(e){alert('画像を添付できません: '+e.message);}};
 function sysGlasses(){return 'あなたはメガネ・サングラスのスタイリングのアドバイザーです。送られた画像を見て答えます。ルール:1)結論から簡潔に。2)似合っているかは断定せず、「〜の印象に見える」の形で、理由（顔の形とフレームの形・色・大きさのバランス）を添える。3)年齢や容姿を否定的に扱わない。4)より合いそうなフレームの方向性を1〜2個提案する。5)Google検索で、画像のメガネに近いデザインで実際に販売されている商品を3つ探す。回答の最後に、1商品1行で必ず次の形式で書く：【近い商品】商品名｜ブランド名｜画像検索用の短い語。6)価格・素材は検索結果で確認できたものだけ書き、確認できないことは書かない。7)画像にメガネが写っていない場合は、その旨を伝え、写っている人の印象に合いそうなフレームの方向性だけを提案する。';}
+function sysGlassesNoSearch(){return sysGlasses().replace(/5\)Google検索で[\s\S]*?画像検索用の短い語。/,'5)今回は検索を使えない。実在の商品名・ブランド名・価格は書かない。画像のメガネに近いデザインの特徴を3つ挙げ、回答の最後に、1つ1行で必ず次の形式で書く：【近い商品】デザインの特徴（例：黒のボストン型セルフレーム）｜｜画像検索用の短い語。');}
 function parseGlassItems(text){
   const items=[];const rest=[];
   text.split('\n').forEach(line=>{const m=/^\s*[-・*]?\s*【近い商品】\s*(.+)$/.exec(line);
@@ -1875,11 +1876,19 @@ async function sendImageChat(q){
   pushMsg('user',ask);state.chat[state.chat.length-1].img=true;save();renderChat();
   const log=$('chatLog');const wait=document.createElement('div');wait.className='msg ai';wait.textContent='画像を見て、近い商品を検索しています…';log.appendChild(wait);log.scrollTop=log.scrollHeight;
   try{
-    const body={systemInstruction:{parts:[{text:sysGlasses()}]},
-      contents:[{role:'user',parts:[{inlineData:{mimeType:img.mime,data:img.data}},{text:ask}]}],
-      tools:[{google_search:{}}]};
-    const data=await callGemini(body);
+    const contents=[{role:'user',parts:[{inlineData:{mimeType:img.mime,data:img.data}},{text:ask}]}];
+    let data,noSearch=false;
+    try{data=await callGemini({systemInstruction:{parts:[{text:sysGlasses()}]},contents,tools:[{google_search:{}}]});}
+    catch(err){
+      /* 利用上限（クォータ）に達したら、検索なしで自動的に答え直す */
+      if(!/quota|api 429|RESOURCE_EXHAUSTED/i.test(err.message||''))throw err;
+      wait.textContent='検索の利用上限に達したため、検索なしで答え直しています…';
+      noSearch=true;
+      try{data=await callGemini({systemInstruction:{parts:[{text:sysGlassesNoSearch()}]},contents});}
+      catch(err2){if(/quota|api 429|RESOURCE_EXHAUSTED/i.test(err2.message||''))throw new Error('検索なしでも利用上限に達しました。⚙ 設定で「モデル」を別のもの（例：Gemini 3.5 Flash-Lite）に変えるか、しばらく待ってからお試しください。');throw err2;}
+    }
     const raw=extractText(data);const r=parseGlassItems(raw);
+    if(noSearch&&r.text)r.text='（検索の利用上限に達したため、検索なしで回答しました。下の候補は実在の商品名ではなく、近いデザインの特徴です）\n'+r.text;
     const chunks=data?.candidates?.[0]?.groundingMetadata?.groundingChunks||[];
     const links=[];chunks.forEach(c=>{if(c.web&&c.web.uri&&!links.some(l=>l.uri===c.web.uri))links.push({title:c.web.title||'',uri:c.web.uri});});
     wait.remove();
